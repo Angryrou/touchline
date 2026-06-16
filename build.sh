@@ -19,6 +19,13 @@ swiftc -O -whole-module-optimization \
     -framework SwiftUI -framework AppKit \
     "$SRC" -o "$CONTENTS/MacOS/$BIN"
 
+# App icon: regenerate from source if the compiled .icns is missing.
+if [ ! -f Touchline.icns ]; then
+    echo "› Generating icon..."
+    swiftc make_icon.swift -o make_icon && ./make_icon && iconutil -c icns Touchline.iconset -o Touchline.icns
+fi
+cp Touchline.icns "$CONTENTS/Resources/Touchline.icns"
+
 cat > "$CONTENTS/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -31,6 +38,7 @@ cat > "$CONTENTS/Info.plist" <<'PLIST'
     <key>CFBundleShortVersionString</key> <string>1.0.0</string>
     <key>CFBundlePackageType</key>     <string>APPL</string>
     <key>CFBundleExecutable</key>      <string>Touchline</string>
+    <key>CFBundleIconFile</key>        <string>Touchline</string>
     <key>LSMinimumSystemVersion</key>  <string>13.0</string>
     <key>LSUIElement</key>             <true/>
     <key>NSHighResolutionCapable</key> <true/>

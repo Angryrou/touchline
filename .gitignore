@@ -3,3 +3,6 @@ Touchline.app/
 WC26.app/
 *.zip
 .DS_Store
+Touchline.iconset/
+make_icon
+icon_preview_*.png
