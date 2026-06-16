@@ -53,4 +53,15 @@ Everything is a single file: [`Touchline.swift`](Touchline.swift).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+**Source-available, free for non-commercial use** under the
+[PolyForm Noncommercial License 1.0.0](LICENSE).
+
+You may use, modify, and share Touchline for any non-commercial purpose
+(personal use, study, hobby projects, non-profits, schools, government) at no cost.
+
+**Commercial use requires a paid license** — using Touchline or its source for or
+within a commercial product, service, or organization. Contact
+[@Angryrou](https://github.com/Angryrou) to arrange one.
+
+> Releases v1.0.0 and earlier were published under the MIT License and remain available
+> under those terms. This license applies from v1.1.0 onward.

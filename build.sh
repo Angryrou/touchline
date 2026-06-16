@@ -35,7 +35,7 @@ cat > "$CONTENTS/Info.plist" <<'PLIST'
     <key>CFBundleDisplayName</key>     <string>Touchline</string>
     <key>CFBundleIdentifier</key>      <string>com.angryrou.touchline</string>
     <key>CFBundleVersion</key>         <string>1</string>
-    <key>CFBundleShortVersionString</key> <string>1.0.0</string>
+    <key>CFBundleShortVersionString</key> <string>1.1.0</string>
     <key>CFBundlePackageType</key>     <string>APPL</string>
     <key>CFBundleExecutable</key>      <string>Touchline</string>
     <key>CFBundleIconFile</key>        <string>Touchline</string>
