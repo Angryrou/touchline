@@ -615,7 +615,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Notch avoidance: give the status item a stable autosave name and, on first
+        // launch only, seed a small "preferred position" (distance from the right edge)
+        // so the icon lands in the right cluster — away from the centered notch — rather
+        // than wherever macOS would otherwise drop a new item (often under the notch).
+        // The value persists after the user drags it, so we only seed it once.
+        let autosave = "TouchlineStatusItem"
+        let posKey = "NSStatusItem Preferred Position \(autosave)"
+        if UserDefaults.standard.object(forKey: posKey) == nil {
+            UserDefaults.standard.set(8, forKey: posKey)   // 8pt from the right edge
+        }
+
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem.autosaveName = autosave
         if let button = statusItem.button {
             // Always show a soccer-ball icon so the item is findable even with no
             // live game / before data loads. A short score is appended as text.
