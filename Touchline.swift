@@ -7,12 +7,12 @@ import ServiceManagement
 // MARK: - App metadata & external links
 
 enum AppInfo {
+    static let name = "Touchline"
     static let version = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "1.0.0"
     static let author = "Angryrou"
-    static let repoURL = URL(string: "https://github.com/Angryrou/wc26-widget")!
-    static let releasesURL = URL(string: "https://github.com/Angryrou/wc26-widget/releases/latest")!
-    static let latestAPIURL = URL(string: "https://api.github.com/repos/Angryrou/wc26-widget/releases/latest")!
-    static let donateURL = URL(string: "https://github.com/sponsors/Angryrou")!
+    static let repoURL = URL(string: "https://github.com/Angryrou/touchline")!
+    static let releasesURL = URL(string: "https://github.com/Angryrou/touchline/releases/latest")!
+    static let latestAPIURL = URL(string: "https://api.github.com/repos/Angryrou/touchline/releases/latest")!
 }
 
 // MARK: - Local timezone (auto-detected, never hardcoded)
@@ -308,7 +308,7 @@ final class Model: ObservableObject {
     @Published var panelMatches: [Match] = []     // matches for the selected date
     @Published var liveMatches: [Match] = []       // today's matches (drives title + cadence)
     @Published var selectedDate: Date = Date()
-    @Published var menuTitle: String = "⚽ WC26"
+    @Published var menuTitle: String = "⚽ Touchline"
     @Published var lastUpdated: Date?
     @Published var errorText: String?
     @Published var loading = false
@@ -397,7 +397,7 @@ final class Model: ObservableObject {
             self.errorText = nil
         } catch {
             self.errorText = error.localizedDescription
-            if liveMatches.isEmpty { self.menuTitle = "⚽ WC26 ⚠︎" }
+            if liveMatches.isEmpty { self.menuTitle = "⚽ Touchline ⚠︎" }
         }
     }
 
@@ -512,7 +512,7 @@ final class Model: ObservableObject {
         if let next = matches.first(where: { $0.state == .pre }) {
             return "⚽ \(next.home.abbr)–\(next.away.abbr) \(next.detail)"
         }
-        return "⚽ WC26"
+        return "⚽ Touchline"
     }
 }
 
@@ -659,7 +659,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 @main
-enum WC26Main {
+enum TouchlineMain {
     static func main() {
         let app = NSApplication.shared
         let delegate = AppDelegate()
@@ -700,8 +700,9 @@ struct PanelView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
-            Text("FIFA World Cup 26").font(.headline)
+        HStack(spacing: 6) {
+            Text("Touchline").font(.headline)
+            Text("World Cup 26").font(.caption).foregroundStyle(.secondary)
             if model.fastActive {
                 Label("12s", systemImage: "bolt.fill")
                     .font(.caption2).foregroundStyle(.yellow)
@@ -833,9 +834,6 @@ struct SettingsTab: View {
             HStack(spacing: 16) {
                 Link(destination: AppInfo.repoURL) {
                     Label("Source Code", systemImage: "chevron.left.forwardslash.chevron.right")
-                }
-                Link(destination: AppInfo.donateURL) {
-                    Label("Donate", systemImage: "heart.fill").foregroundStyle(.pink)
                 }
             }
             .font(.callout)

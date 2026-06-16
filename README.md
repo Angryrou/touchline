@@ -1,4 +1,4 @@
-# WC26 — World Cup 2026 Live Scores in your Mac menu bar
+# Touchline — World Cup 2026 Live Scores in your Mac menu bar
 
 A tiny native macOS menu-bar app that shows live FIFA World Cup 2026 scores, glanceable from anywhere.
 
@@ -14,18 +14,18 @@ A tiny native macOS menu-bar app that shows live FIFA World Cup 2026 scores, gla
 - **Full tournament schedule** — a date strip from the opener (Jun 11) through the Final (Jul 19), with round labels.
 - **Tap a team** — the 3-letter code opens an English Google search; the Chinese name opens a Chinese one.
 - **Global show/hide shortcut** — default `⌃\`` (Control + backtick), rebindable in Settings. No Accessibility permission needed.
-- **Settings** — launch at login, check for updates, source & donate links.
+- **Settings** — launch at login, check for updates, source link.
 
 Data comes from ESPN's public scoreboard endpoint. No API key, no account, no tracking.
 
 ## Install
 
-1. Download `WC26.zip` from the [latest release](../../releases/latest) and unzip it.
-2. Move `WC26.app` to `/Applications`.
-3. **First launch** (required, because the app isn't notarized): **right-click `WC26.app` → Open**, then click **Open** in the dialog. macOS remembers this and won't ask again.
-   - If macOS still refuses, run once in Terminal: `xattr -dr com.apple.quarantine /Applications/WC26.app`
+1. Download `Touchline.zip` from the [latest release](../../releases/latest) and unzip it.
+2. Move `Touchline.app` to `/Applications`.
+3. **First launch** (required, because the app isn't notarized): **right-click `Touchline.app` → Open**, then click **Open** in the dialog. macOS remembers this and won't ask again.
+   - If macOS still refuses, run once in Terminal: `xattr -dr com.apple.quarantine /Applications/Touchline.app`
 
-The app lives only in the menu bar (no Dock icon). To launch at login: System Settings → General → Login Items → add WC26.
+The app lives only in the menu bar (no Dock icon). To launch at login: open the **Settings** tab and toggle **Launch at login** (or System Settings → General → Login Items).
 
 ## Usage
 
@@ -39,11 +39,11 @@ The app lives only in the menu bar (no Dock icon). To launch at login: System Se
 Requires Xcode command-line tools (Swift 5.9+).
 
 ```sh
-./build.sh        # compiles WC26.swift into WC26.app
-open WC26.app
+./build.sh        # compiles Touchline.swift into Touchline.app
+open Touchline.app
 ```
 
-Everything is a single file: [`WC26.swift`](WC26.swift).
+Everything is a single file: [`Touchline.swift`](Touchline.swift).
 
 ## Notes
 

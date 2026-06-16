@@ -1,10 +1,11 @@
 #!/bin/bash
-# Build WC26.swift into a dock-less menu-bar .app bundle. No Xcode project needed.
+# Build Touchline.swift into a dock-less menu-bar .app bundle. No Xcode project needed.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-APP="WC26.app"
-BIN="WC26"
+APP="Touchline.app"
+BIN="Touchline"
+SRC="Touchline.swift"
 CONTENTS="$APP/Contents"
 
 echo "› Compiling ($(swiftc --version | head -1))..."
@@ -16,20 +17,20 @@ swiftc -O -whole-module-optimization \
     -parse-as-library \
     -target arm64-apple-macosx13.0 \
     -framework SwiftUI -framework AppKit \
-    WC26.swift -o "$CONTENTS/MacOS/$BIN"
+    "$SRC" -o "$CONTENTS/MacOS/$BIN"
 
 cat > "$CONTENTS/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key>            <string>WC26</string>
-    <key>CFBundleDisplayName</key>     <string>WC26 Live</string>
-    <key>CFBundleIdentifier</key>      <string>local.wc26.menubar</string>
+    <key>CFBundleName</key>            <string>Touchline</string>
+    <key>CFBundleDisplayName</key>     <string>Touchline</string>
+    <key>CFBundleIdentifier</key>      <string>com.angryrou.touchline</string>
     <key>CFBundleVersion</key>         <string>1</string>
-    <key>CFBundleShortVersionString</key> <string>1.0</string>
+    <key>CFBundleShortVersionString</key> <string>1.0.0</string>
     <key>CFBundlePackageType</key>     <string>APPL</string>
-    <key>CFBundleExecutable</key>      <string>WC26</string>
+    <key>CFBundleExecutable</key>      <string>Touchline</string>
     <key>LSMinimumSystemVersion</key>  <string>13.0</string>
     <key>LSUIElement</key>             <true/>
     <key>NSHighResolutionCapable</key> <true/>
