@@ -626,7 +626,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         popover.behavior = .transient
         popover.animates = true
-        popover.contentSize = NSSize(width: 330, height: 460)
+        popover.contentSize = NSSize(width: 360, height: 460)
         popover.contentViewController = NSHostingController(
             rootView: PanelView()
                 .environmentObject(model)
@@ -683,7 +683,7 @@ struct PanelView: View {
                 .environmentObject(hotKeys)
                 .tabItem { Label("Settings", systemImage: "gearshape") }
         }
-        .frame(width: 330, height: 460)
+        .frame(width: 360, height: 460)
     }
 
     private var scoresTab: some View {
@@ -727,6 +727,11 @@ struct PanelView: View {
         .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 12)
     }
 
+    static let gridColumns = [
+        GridItem(.flexible(), spacing: 7),
+        GridItem(.flexible(), spacing: 7),
+    ]
+
     private var matchList: some View {
         Group {
             if model.panelMatches.isEmpty {
@@ -743,13 +748,13 @@ struct PanelView: View {
                 .padding(16)
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 2) {
+                    LazyVGrid(columns: Self.gridColumns, spacing: 7) {
                         ForEach(model.panelMatches) { m in
-                            MatchRow(match: m).environmentObject(model)
+                            MatchCard(match: m).environmentObject(model)
                         }
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 2)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
@@ -919,9 +924,10 @@ struct DateChip: View {
     }
 }
 
-/// One match as a minimal two-line row: flags + names + scores on the left,
-/// a quiet status/star column on the right. Live matches get a soft red wash.
-struct MatchRow: View {
+/// One match as a compact grid card: a status line (clock/FT + ⚡ star) on top,
+/// then two team lines (flag · code · name · score). Flat minimalist styling —
+/// a faint fill, a soft red wash for live games, no heavy borders.
+struct MatchCard: View {
     @EnvironmentObject var model: Model
     let match: Match
 
@@ -929,65 +935,49 @@ struct MatchRow: View {
     private var starred: Bool { model.isStarred(match.id) }
 
     var body: some View {
-        HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 5) {
-                teamLine(match.home, winner: match.homeWins)
-                teamLine(match.away, winner: match.awayWins)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 5) {
+                if isLive { Circle().fill(Color.red).frame(width: 5, height: 5) }
+                Text(match.detail)
+                    .font(.system(size: 10.5, weight: isLive ? .bold : .regular).monospacedDigit())
+                    .foregroundStyle(isLive ? Color.red : .secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 2)
+                Button { model.toggleStar(match.id) } label: {
+                    Image(systemName: starred ? "bolt.fill" : "bolt")
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(starred ? Color.red : Color.secondary.opacity(0.3))
+                }
+                .buttonStyle(.plain)
+                .help("Quick-refresh (12s) while this match is live")
             }
-            Spacer(minLength: 8)
-            statusColumn
-                .frame(width: 54, alignment: .trailing)
+            teamLine(match.home, winner: match.homeWins)
+            teamLine(match.away, winner: match.awayWins)
         }
-        .padding(.horizontal, 12).padding(.vertical, 9)
+        .padding(.horizontal, 10).padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(isLive ? Color.red.opacity(0.06) : .clear)
+                .fill(isLive ? Color.red.opacity(0.06) : Color.primary.opacity(0.035))
         )
-    }
-
-    private var statusColumn: some View {
-        VStack(alignment: .trailing, spacing: 5) {
-            Text(statusText)
-                .font(.system(size: 11, weight: isLive ? .bold : .regular).monospacedDigit())
-                .foregroundStyle(isLive ? Color.red : .secondary)
-                .multilineTextAlignment(.trailing)
-                .lineLimit(2)
-            Button { model.toggleStar(match.id) } label: {
-                Image(systemName: starred ? "bolt.fill" : "bolt")
-                    .font(.system(size: 10))
-                    .foregroundStyle(starred ? Color.red : Color.secondary.opacity(0.3))
-            }
-            .buttonStyle(.plain)
-            .help("Quick-refresh (12s) while this match is live")
-        }
-    }
-
-    private var statusText: String {
-        switch match.state {
-        case .live: return match.detail
-        case .post: return match.detail   // "FT"
-        case .pre:  return match.detail    // local kickoff time
-        }
     }
 
     @ViewBuilder
     private func teamLine(_ side: Side, winner: Bool) -> some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 6) {
             flag(side.flagURL)
-                .padding(.trailing, 9)
 
             // ABC -> English Google search
             link(text: side.abbr, url: side.englishSearchURL, winner: winner)
-                .frame(width: 40, alignment: .leading)
 
             // Chinese name -> Chinese Google search
             link(text: side.chineseName, url: side.chineseSearchURL, winner: false, chinese: true)
-                .frame(width: 84, alignment: .leading)
+
+            Spacer(minLength: 4)
 
             Text(match.hasScore ? side.score : "–")
-                .font(.system(size: 15, weight: winner ? .bold : .regular).monospacedDigit())
+                .font(.system(size: 14, weight: winner ? .bold : .regular).monospacedDigit())
                 .foregroundStyle(match.hasScore ? .primary : Color.secondary.opacity(0.5))
-                .frame(width: 18, alignment: .trailing)
         }
     }
 
@@ -1001,7 +991,7 @@ struct MatchRow: View {
                 RoundedRectangle(cornerRadius: 2).fill(Color.secondary.opacity(0.15))
             }
         }
-        .frame(width: 19, height: 13)
+        .frame(width: 18, height: 12)
         .clipShape(RoundedRectangle(cornerRadius: 2))
         .overlay(RoundedRectangle(cornerRadius: 2).stroke(Color.secondary.opacity(0.2), lineWidth: 0.5))
     }
@@ -1009,10 +999,10 @@ struct MatchRow: View {
     @ViewBuilder
     private func link(text: String, url: URL?, winner: Bool, chinese: Bool = false) -> some View {
         let label = Text(text)
-            .font(chinese ? .system(size: 11) : .system(size: 13.5, weight: winner ? .semibold : .regular, design: .rounded))
+            .font(chinese ? .system(size: 10) : .system(size: 13, weight: winner ? .bold : .regular, design: .rounded))
             .foregroundStyle(chinese ? Color.secondary : .primary)
             .lineLimit(1)
-            .minimumScaleFactor(chinese ? 0.8 : 1.0)
+            .minimumScaleFactor(chinese ? 0.7 : 1.0)
         if let url {
             Link(destination: url) { label }
                 .buttonStyle(.plain)
