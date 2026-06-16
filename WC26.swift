@@ -2,6 +2,34 @@ import SwiftUI
 import AppKit
 import Combine
 import Carbon.HIToolbox
+import ServiceManagement
+
+// MARK: - App metadata & external links
+
+enum AppInfo {
+    static let version = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "1.0.0"
+    static let author = "Angryrou"
+    static let repoURL = URL(string: "https://github.com/Angryrou/wc26-widget")!
+    static let releasesURL = URL(string: "https://github.com/Angryrou/wc26-widget/releases/latest")!
+    static let latestAPIURL = URL(string: "https://api.github.com/repos/Angryrou/wc26-widget/releases/latest")!
+    static let donateURL = URL(string: "https://github.com/sponsors/Angryrou")!
+}
+
+// MARK: - Local timezone (auto-detected, never hardcoded)
+
+enum LocalTZ {
+    static var abbreviation: String { TimeZone.current.abbreviation() ?? TimeZone.current.identifier }
+
+    static var offsetString: String {
+        let secs = TimeZone.current.secondsFromGMT()
+        let sign = secs < 0 ? "-" : "+"
+        let h = abs(secs) / 3600, m = (abs(secs) % 3600) / 60
+        return m == 0 ? "UTC\(sign)\(h)" : String(format: "UTC%@%d:%02d", sign, h, m)
+    }
+
+    /// e.g. "PDT · UTC-7"
+    static var label: String { "\(abbreviation) · \(offsetString)" }
+}
 
 // MARK: - ESPN JSON models (paths verified against site.api.espn.com .../soccer/fifa.world/scoreboard)
 
@@ -204,6 +232,75 @@ enum CN {
     }
 }
 
+// MARK: - Launch at login (SMAppService, macOS 13+)
+
+@MainActor
+final class LoginItem: ObservableObject {
+    @Published var enabled: Bool = false
+
+    init() { refresh() }
+
+    func refresh() { enabled = SMAppService.mainApp.status == .enabled }
+
+    func set(_ on: Bool) {
+        do {
+            if on { try SMAppService.mainApp.register() }
+            else { try SMAppService.mainApp.unregister() }
+        } catch {
+            NSLog("LoginItem toggle failed: \(error)")
+        }
+        refresh()
+    }
+}
+
+// MARK: - Update checker (queries GitHub releases API)
+
+@MainActor
+final class UpdateChecker: ObservableObject {
+    enum State: Equatable {
+        case idle, checking, upToDate, available(String), failed(String)
+    }
+    @Published var state: State = .idle
+
+    func check() {
+        state = .checking
+        Task {
+            do {
+                var req = URLRequest(url: AppInfo.latestAPIURL)
+                req.timeoutInterval = 15
+                req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+                let (data, resp) = try await URLSession.shared.data(for: req)
+                if let http = resp as? HTTPURLResponse, http.statusCode == 404 {
+                    state = .upToDate   // no releases yet
+                    return
+                }
+                struct Release: Decodable { let tag_name: String }
+                let release = try JSONDecoder().decode(Release.self, from: data)
+                let latest = release.tag_name.trimmingCharacters(in: CharacterSet(charactersIn: "vV "))
+                if Self.isNewer(latest, than: AppInfo.version) {
+                    state = .available(latest)
+                } else {
+                    state = .upToDate
+                }
+            } catch {
+                state = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    // Numeric semver compare ("1.2.0" > "1.10.0" handled correctly).
+    static func isNewer(_ a: String, than b: String) -> Bool {
+        let pa = a.split(separator: ".").map { Int($0) ?? 0 }
+        let pb = b.split(separator: ".").map { Int($0) ?? 0 }
+        for i in 0..<max(pa.count, pb.count) {
+            let x = i < pa.count ? pa[i] : 0
+            let y = i < pb.count ? pb[i] : 0
+            if x != y { return x > y }
+        }
+        return false
+    }
+}
+
 // MARK: - Model
 
 @MainActor
@@ -221,6 +318,11 @@ final class Model: ObservableObject {
     private var wake: CheckedContinuation<Void, Never>?
     private let base = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard"
     private let starKey = "starredGames"
+
+    // Per-game completion tracking: when a game flips to .post, the group standings
+    // and downstream knockout fixtures settle, so we do a few accelerated refreshes.
+    private var lastStates: [String: MatchState] = [:]
+    private var settleRefreshesLeft = 0
 
     var fastActive: Bool {
         liveMatches.contains { $0.state == .live && starred.contains($0.id) }
@@ -270,7 +372,11 @@ final class Model: ObservableObject {
         }
     }
 
-    private func nextInterval() -> Double { fastActive ? 12 : 60 }
+    private func nextInterval() -> Double {
+        // A game just finished: refresh quickly to pick up settled standings & fixtures.
+        if settleRefreshesLeft > 0 { return 20 }
+        return fastActive ? 12 : 60
+    }
 
     private func fetchOnce() async {
         loading = true
@@ -278,11 +384,14 @@ final class Model: ObservableObject {
         do {
             let panel = try await fetchLocalDay(selectedDate)
             self.panelMatches = panel
+            let todayMatches: [Match]
             if Tournament.calendar.isDateInToday(selectedDate) {
-                self.liveMatches = panel
+                todayMatches = panel
             } else {
-                if let today = try? await fetchLocalDay(Date()) { self.liveMatches = today }
+                todayMatches = (try? await fetchLocalDay(Date())) ?? liveMatches
             }
+            detectCompletions(in: todayMatches)
+            self.liveMatches = todayMatches
             self.menuTitle = Self.title(for: self.liveMatches, starred: starred, fast: fastActive)
             self.lastUpdated = Date()
             self.errorText = nil
@@ -290,6 +399,21 @@ final class Model: ObservableObject {
             self.errorText = error.localizedDescription
             if liveMatches.isEmpty { self.menuTitle = "⚽ WC26 ⚠︎" }
         }
+    }
+
+    // Compare each game's state to the previous poll. A live→post transition means a
+    // result just settled, so schedule a short burst of faster refreshes to pull in the
+    // updated group table and any newly-determined knockout matchups.
+    private func detectCompletions(in matches: [Match]) {
+        var justFinished = false
+        for m in matches {
+            if let prev = lastStates[m.id], prev != .post, m.state == .post {
+                justFinished = true
+            }
+            lastStates[m.id] = m.state
+        }
+        if justFinished { settleRefreshesLeft = 3 }
+        else if settleRefreshesLeft > 0 { settleRefreshesLeft -= 1 }
     }
 
     // ESPN buckets games by US-Eastern day, but we display by the user's LOCAL day.
@@ -593,17 +717,22 @@ struct PanelView: View {
 
     @ViewBuilder
     private var roundHeader: some View {
-        if let round = Tournament.round(for: model.selectedDate) {
-            HStack {
+        HStack(spacing: 6) {
+            if let round = Tournament.round(for: model.selectedDate) {
                 Text(round.uppercased())
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
-                Spacer()
-                Text(model.selectedDate.formatted(.dateTime.weekday(.wide).month().day()))
-                    .font(.caption2).foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 12).padding(.vertical, 5)
+            Spacer()
+            Text(model.selectedDate.formatted(.dateTime.weekday(.wide).month().day()))
+                .font(.caption2).foregroundStyle(.secondary)
+            Text("·").font(.caption2).foregroundStyle(.tertiary)
+            Label(LocalTZ.label, systemImage: "clock")
+                .font(.caption2).foregroundStyle(.secondary)
+                .labelStyle(.titleAndIcon)
+                .help("All kickoff times are shown in your local timezone")
         }
+        .padding(.horizontal, 12).padding(.vertical, 5)
     }
 
     static let gridColumns = [
@@ -667,9 +796,12 @@ struct PanelView: View {
 
 struct SettingsTab: View {
     @EnvironmentObject var hotKeys: HotKeyManager
+    @StateObject private var login = LoginItem()
+    @StateObject private var updates = UpdateChecker()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
+            // Shortcut recorder
             VStack(alignment: .leading, spacing: 6) {
                 Text("Show / hide shortcut").font(.headline)
                 Text("Press this combo anywhere to toggle the panel.")
@@ -681,14 +813,70 @@ struct SettingsTab: View {
 
             Divider()
 
-            Text("Click the menu-bar score to toggle too. The ⚡ on a live game polls it every 12s; everything else refreshes every 60s.")
-                .font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            // Launch at login
+            Toggle(isOn: Binding(get: { login.enabled }, set: { login.set($0) })) {
+                Text("Launch at login").font(.callout)
+            }
+            .toggleStyle(.switch)
+
+            Divider()
+
+            // Update check
+            HStack(spacing: 8) {
+                Button { updates.check() } label: { Text("Check for Updates") }
+                    .disabled(updates.state == .checking)
+                updateStatusView
+                Spacer()
+            }
+
+            // Links
+            HStack(spacing: 16) {
+                Link(destination: AppInfo.repoURL) {
+                    Label("Source Code", systemImage: "chevron.left.forwardslash.chevron.right")
+                }
+                Link(destination: AppInfo.donateURL) {
+                    Label("Donate", systemImage: "heart.fill").foregroundStyle(.pink)
+                }
+            }
+            .font(.callout)
+            .buttonStyle(.plain)
 
             Spacer()
+
+            // Author / version footer
+            HStack {
+                Spacer()
+                Link("\(AppInfo.author)@", destination: AppInfo.repoURL)
+                    .foregroundStyle(.secondary)
+                Text("· v\(AppInfo.version)")
+                    .foregroundStyle(.tertiary)
+                Spacer()
+            }
+            .font(.caption)
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private var updateStatusView: some View {
+        switch updates.state {
+        case .idle:
+            EmptyView()
+        case .checking:
+            ProgressView().controlSize(.small)
+        case .upToDate:
+            Label("Up to date", systemImage: "checkmark.circle.fill")
+                .font(.caption).foregroundStyle(.green)
+        case .available(let v):
+            Link(destination: AppInfo.releasesURL) {
+                Label("v\(v) available", systemImage: "arrow.down.circle.fill")
+                    .font(.caption).foregroundStyle(.blue)
+            }
+        case .failed:
+            Label("Check failed", systemImage: "exclamationmark.triangle.fill")
+                .font(.caption).foregroundStyle(.orange)
+        }
     }
 }
 

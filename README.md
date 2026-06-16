@@ -9,9 +9,12 @@ A tiny native macOS menu-bar app that shows live FIFA World Cup 2026 scores, gla
 - **Live scores in the menu bar** — the current/next match shows right in the bar; click for the full day.
 - **2-column grid** of all matches for any day, with country flags.
 - **Per-game ⚡ quick-refresh** — star a live game to poll it every 12s; everything else refreshes every 60s.
+- **Auto-updating schedule** — when a game finishes, the app refreshes faster to pull in settled group standings and any newly-determined knockout fixtures.
+- **Local timezone, always** — kickoff times and the daily schedule auto-adapt to your timezone (shown in the header, e.g. `EDT · UTC-4`). Nothing hardcoded.
 - **Full tournament schedule** — a date strip from the opener (Jun 11) through the Final (Jul 19), with round labels.
 - **Tap a team** — the 3-letter code opens an English Google search; the Chinese name opens a Chinese one.
 - **Global show/hide shortcut** — default `⌃\`` (Control + backtick), rebindable in Settings. No Accessibility permission needed.
+- **Settings** — launch at login, check for updates, source & donate links.
 
 Data comes from ESPN's public scoreboard endpoint. No API key, no account, no tracking.
 
