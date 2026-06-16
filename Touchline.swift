@@ -308,7 +308,7 @@ final class Model: ObservableObject {
     @Published var panelMatches: [Match] = []     // matches for the selected date
     @Published var liveMatches: [Match] = []       // today's matches (drives title + cadence)
     @Published var selectedDate: Date = Date()
-    @Published var menuTitle: String = "⚽ Touchline"
+    @Published var menuTitle: String = ""
     @Published var lastUpdated: Date?
     @Published var errorText: String?
     @Published var loading = false
@@ -397,7 +397,7 @@ final class Model: ObservableObject {
             self.errorText = nil
         } catch {
             self.errorText = error.localizedDescription
-            if liveMatches.isEmpty { self.menuTitle = "⚽ Touchline ⚠︎" }
+            if liveMatches.isEmpty { self.menuTitle = "⚠︎" }
         }
     }
 
@@ -500,19 +500,15 @@ final class Model: ObservableObject {
         }
     }
 
+    // A SHORT menu-bar suffix (the icon carries the branding). Empty when nothing is
+    // live, so the bar shows just the clean ball icon and never gets pushed under the notch.
     private static func title(for matches: [Match], starred: Set<String>, fast: Bool) -> String {
         let live = matches.filter { $0.state == .live }
         // Prefer a starred live game, else any live game.
-        let pick = live.first(where: { starred.contains($0.id) }) ?? live.first
-        if let m = pick {
-            let bolt = (fast && starred.contains(m.id)) ? "⚡" : "🔴"
-            let base = "\(bolt) \(m.home.abbr) \(m.home.score)-\(m.away.score) \(m.away.abbr) \(m.detail)"
-            return live.count > 1 ? base + " +\(live.count - 1)" : base
+        if let m = live.first(where: { starred.contains($0.id) }) ?? live.first {
+            return "\(m.home.abbr) \(m.home.score)-\(m.away.score) \(m.away.abbr)"
         }
-        if let next = matches.first(where: { $0.state == .pre }) {
-            return "⚽ \(next.home.abbr)–\(next.away.abbr) \(next.detail)"
-        }
-        return "⚽ Touchline"
+        return ""   // no live game → icon only
     }
 }
 
@@ -620,9 +616,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.title = model.menuTitle
-        statusItem.button?.target = self
-        statusItem.button?.action = #selector(togglePopover)
+        if let button = statusItem.button {
+            // Always show a soccer-ball icon so the item is findable even with no
+            // live game / before data loads. A short score is appended as text.
+            let cfg = NSImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
+            button.image = NSImage(systemSymbolName: "soccerball", accessibilityDescription: "Touchline")?
+                .withSymbolConfiguration(cfg)
+            button.imagePosition = .imageLeading
+            button.title = ""
+            button.target = self
+            button.action = #selector(togglePopover)
+        }
 
         popover.behavior = .transient
         popover.animates = true
@@ -633,11 +637,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .environmentObject(hotKeys)
         )
 
-        // Mirror the model title into the status bar button.
+        // Mirror a SHORT score into the button text (icon stays put). Keeping this
+        // brief avoids the item being pushed under the notch on notched Macs.
         model.$menuTitle
             .receive(on: RunLoop.main)
             .sink { [weak self] title in
-                self?.statusItem.button?.title = String(title.prefix(48))
+                self?.statusItem.button?.title = title.isEmpty ? "" : " " + title
             }
             .store(in: &cancellables)
 

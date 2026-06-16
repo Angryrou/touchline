@@ -1,9 +1,7 @@
-// Generates Touchline.icns — an abstracted black/white soccer-ball mark on a
-// TRANSPARENT background (no frame, no fill). Pure vector line-art: circle outline +
-// center pentagon + 5 spokes. No copyrighted assets, no gradients/gloss.
-//
-// The mark is drawn in near-black; macOS renders it on the user's wallpaper/dock.
-// For the menu bar the app uses an SF Symbol separately — this is the app icon.
+// Generates Touchline.icns — a white rounded-square card with a dark line-art
+// soccer ball (circle + center pentagon + 5 spokes). The white card carries its own
+// background so the icon stays visible on ANY wallpaper, including dark ones.
+// Pure vector, no copyrighted assets, no gradients/gloss.
 //
 // Usage: swiftc make_icon.swift -o make_icon && ./make_icon
 import CoreGraphics
@@ -14,6 +12,7 @@ import Foundation
 let space = CGColorSpace(name: CGColorSpace.sRGB)!
 func rgb(_ r: Double,_ g: Double,_ b: Double,_ a: Double = 1) -> CGColor { CGColor(srgbRed: r, green: g, blue: b, alpha: a) }
 let ink = rgb(0.11, 0.11, 0.12)
+let cardWhite = rgb(1, 1, 1)
 
 func poly(_ c: CGPoint,_ r: CGFloat,_ rot: CGFloat) -> CGPath {
     let p = CGMutablePath()
@@ -31,14 +30,19 @@ func drawIcon(px: Int) -> CGImage {
                       space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
     g.setAllowsAntialiasing(true); g.interpolationQuality = .high
 
-    // Mark fills ~78% of the canvas, centered — leaves the margin macOS icons expect.
+    // White rounded-square card (macOS icon grid: 824 content in 1024, r≈188).
+    let card = CGPath(roundedRect: CGRect(x: 100*s, y: 100*s, width: 824*s, height: 824*s),
+                      cornerWidth: 188*s, cornerHeight: 188*s, transform: nil)
+    g.addPath(card); g.setFillColor(cardWhite); g.fillPath()
+
+    // Dark line-art ball, centered.
     let C = CGPoint(x: 512*s, y: 512*s)
-    let R = 392*s
+    let R = 300*s
 
     g.setStrokeColor(ink); g.setLineJoin(.round); g.setLineCap(.round)
 
     // outer circle
-    g.setLineWidth(54*s)
+    g.setLineWidth(38*s)
     g.strokeEllipse(in: CGRect(x: C.x-R, y: C.y-R, width: 2*R, height: 2*R))
 
     // center pentagon (filled)
@@ -46,7 +50,7 @@ func drawIcon(px: Int) -> CGImage {
     g.addPath(poly(C, Rp, 0)); g.setFillColor(ink); g.fillPath()
 
     // 5 spokes from pentagon vertices to the rim
-    g.setLineWidth(48*s)
+    g.setLineWidth(34*s)
     for k in 0..<5 {
         let a = (90 + CGFloat(k)*72) * .pi/180
         g.move(to: CGPoint(x: C.x + Rp*cos(a), y: C.y + Rp*sin(a)))
