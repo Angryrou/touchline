@@ -315,7 +315,7 @@ final class Model: ObservableObject {
     @Published private(set) var starred: Set<String> = []
 
     private var loopTask: Task<Void, Never>?
-    private var wake: CheckedContinuation<Void, Never>?
+    private var wakeRequested = false
     private let base = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard"
     private let starKey = "starredGames"
 
@@ -339,7 +339,7 @@ final class Model: ObservableObject {
         loopTask = Task { [weak self] in await self?.loop() }
     }
 
-    func refreshNow() { wake?.resume(); wake = nil }
+    func refreshNow() { wakeRequested = true }
 
     func isStarred(_ id: String) -> Bool { starred.contains(id) }
 
@@ -361,14 +361,16 @@ final class Model: ObservableObject {
     private func loop() async {
         while !Task.isCancelled {
             await fetchOnce()
-            let seconds = nextInterval()
-            await withTaskGroup(of: Void.self) { group in
-                group.addTask { try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000)) }
-                group.addTask { await withCheckedContinuation { c in Task { @MainActor in self.wake = c } } }
-                await group.next()
-                group.cancelAll()
+            // Sleep until the next interval, but wake early if refreshNow() sets the flag.
+            // Polling in short slices avoids the continuation/task-group race that could
+            // stall the loop (symptom: clock frozen until a manual refresh).
+            let deadline = nextInterval()
+            var elapsed = 0.0
+            wakeRequested = false
+            while elapsed < deadline && !wakeRequested && !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 500_000_000)   // 0.5s slice
+                elapsed += 0.5
             }
-            wake = nil
         }
     }
 
@@ -502,11 +504,14 @@ final class Model: ObservableObject {
 
     // A SHORT menu-bar suffix (the icon carries the branding). Empty when nothing is
     // live, so the bar shows just the clean ball icon and never gets pushed under the notch.
+    // Always include the match status (e.g. "67'", "HT") so an in-progress game that's
+    // paused at halftime isn't mistaken for a stale/frozen score.
     private static func title(for matches: [Match], starred: Set<String>, fast: Bool) -> String {
         let live = matches.filter { $0.state == .live }
         // Prefer a starred live game, else any live game.
         if let m = live.first(where: { starred.contains($0.id) }) ?? live.first {
-            return "\(m.home.abbr) \(m.home.score)-\(m.away.score) \(m.away.abbr)"
+            let status = m.detail.isEmpty ? "" : " · \(m.detail)"
+            return "\(m.home.abbr) \(m.home.score)-\(m.away.score) \(m.away.abbr)\(status)"
         }
         return ""   // no live game → icon only
     }
