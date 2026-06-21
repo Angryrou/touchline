@@ -5,7 +5,7 @@ A tiny native macOS menu-bar app that shows live FIFA World Cup 2026 scores, gla
 ![menu bar](https://img.shields.io/badge/macOS-13%2B-blue) ![swift](https://img.shields.io/badge/Swift-5.9-orange)
 
 <p align="center">
-  <img src="assets/demo.png" alt="Touchline menu-bar panel showing the day's World Cup matches in a 2-column grid" width="380">
+  <img src="assets/demo.gif" alt="Touchline live in the macOS menu bar: scores updating on their own while the panel shows the day's World Cup matches" width="380">
 </p>
 
 ## Features
