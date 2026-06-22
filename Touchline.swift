@@ -880,7 +880,7 @@ struct SettingsTab: View {
     private var aboutSection: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Enjoying Touchline?").font(.headline)
-            Text("If it helps you, buy me a Claude token 😂\n如果觉得好用，赏我几个 Claude token 呗 😂")
+            Text("It runs on Claude tokens — buy me some? 😄  ·  赏我几个 Claude token 呗 😄")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -914,7 +914,7 @@ struct SettingsTab: View {
     @ViewBuilder
     private var qrImage: some View {
         let name = pay == .venmo ? "qr-code-vemon" : "qr-code-wechat"
-        if let img = bundledImage(name, "jpg") {
+        if let img = bundledImage(name, "png") {
             VStack(spacing: 4) {
                 Image(nsImage: img)
                     .resizable()
