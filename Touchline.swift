@@ -263,6 +263,9 @@ final class Model: ObservableObject {
     @Published var errorText: String?
     @Published var loading = false
     @Published private(set) var starred: Set<String> = []
+    // Bumped on every "jump to today" so the date strip re-centers even when the
+    // selected date didn't change (e.g. already today but scrolled away).
+    @Published private(set) var recenterTick = 0
 
     private var loopTask: Task<Void, Never>?
     private var wakeRequested = false
@@ -306,7 +309,10 @@ final class Model: ObservableObject {
         refreshNow()
     }
 
-    func jumpToToday() { selectDate(Date()) }
+    func jumpToToday() {
+        selectDate(Date())       // switches day (+ refetch) if we weren't on today
+        recenterTick += 1        // always re-center the strip, even if already today
+    }
 
     private func loop() async {
         while !Task.isCancelled {
@@ -623,6 +629,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if popover.isShown {
             popover.performClose(nil)
         } else {
+            // Every time the panel opens, snap back to today — so reopening after
+            // browsing another date (or after the app has been up across midnight)
+            // always lands on the current day.
+            model.jumpToToday()
             NSApp.activate(ignoringOtherApps: true)
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
@@ -770,81 +780,93 @@ struct SettingsTab: View {
     enum Pay: String, CaseIterable { case venmo = "Venmo", wechat = "WeChat" }
     @State private var pay: Pay = .venmo   // Venmo first, WeChat second
 
+    // Uniform vertical gap between every top-level block, so the page has one
+    // consistent rhythm instead of mixed spacings.
+    private let blockGap: CGFloat = 12
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Show / hide shortcut
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Show / hide shortcut").font(.headline)
-                Text("Press this combo anywhere to toggle the panel.")
-                    .font(.caption).foregroundStyle(.secondary)
-                ShortcutRecorder()
-                    .environmentObject(hotKeys)
-                    .frame(height: 26)
-            }
-
-            Divider()
-
-            // Launch at login
-            Toggle(isOn: Binding(get: { login.enabled }, set: { login.set($0) })) {
-                Text("Launch at login").font(.callout)
-            }
-            .toggleStyle(.switch)
-
-            Divider()
-
-            // Support — share a tip QR
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Enjoying Touchline?").font(.headline)
-                Text("It runs on Claude tokens — buy me some? 😄")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Picker("", selection: $pay) {
-                ForEach(Pay.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-
-            HStack {
-                Spacer()
-                qrImage
-                Spacer()
-            }
-
-            Spacer(minLength: 0)
-
-            HStack {
-                Link(destination: AppInfo.repoURL) {
-                    Label("Source", systemImage: "chevron.left.forwardslash.chevron.right")
+        // ScrollView so the content can NEVER push the TabView's tab bar off-screen
+        // (that's what made Settings un-leaveable). It also stays scrollable on
+        // shorter displays; normally everything fits without scrolling.
+        ScrollView {
+            VStack(alignment: .leading, spacing: blockGap) {
+                // Show / hide shortcut
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Show / hide shortcut").font(.headline)
+                    Text("Press this combo anywhere to toggle the panel.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    ShortcutRecorder()
+                        .environmentObject(hotKeys)
+                        .frame(height: 26)
                 }
-                .buttonStyle(.plain)
-                Spacer()
-                Text("\(AppInfo.author) · v\(AppInfo.version)").foregroundStyle(.tertiary)
+
+                Divider()
+
+                // Launch at login — match the headline rhythm of the other sections.
+                HStack {
+                    Text("Launch at login").font(.headline)
+                    Spacer()
+                    Toggle("", isOn: Binding(get: { login.enabled }, set: { login.set($0) }))
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                }
+
+                Divider()
+
+                // Support — share a tip QR
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Enjoying Touchline?").font(.headline)
+                    Text("It runs on Claude tokens — buy me some? 😄")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Picker("", selection: $pay) {
+                        ForEach(Pay.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .padding(.top, 2)
+
+                    qrImage.padding(.top, 4)
+                }
+
+                Divider()
+
+                HStack {
+                    Link(destination: AppInfo.repoURL) {
+                        Label("Source", systemImage: "chevron.left.forwardslash.chevron.right")
+                    }
+                    .buttonStyle(.plain)
+                    Spacer()
+                    Text("\(AppInfo.author) · v\(AppInfo.version)").foregroundStyle(.tertiary)
+                }
+                .font(.caption)
             }
-            .font(.caption)
+            .padding(16)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
     private var qrImage: some View {
         let name = pay == .venmo ? "qr-code-vemon" : "qr-code-wechat"
         if let img = bundledImage(name, "png") {
-            VStack(spacing: 4) {
+            VStack(spacing: 5) {
                 Image(nsImage: img)
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 150, height: 150)
+                    .frame(width: 132, height: 132)
                     .background(Color.white)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 Text("Scan with \(pay.rawValue) to tip")
                     .font(.caption2).foregroundStyle(.secondary)
             }
+            .frame(maxWidth: .infinity)   // center the QR + caption as a unit
         } else {
-            Text("QR unavailable").font(.caption).foregroundStyle(.secondary).frame(height: 150)
+            Text("QR unavailable")
+                .font(.caption).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, minHeight: 150)
         }
     }
 }
@@ -873,6 +895,11 @@ struct DateStrip: View {
             }
             .onChange(of: model.selectedDate) { newValue in
                 withAnimation { proxy.scrollTo(dayID(newValue), anchor: .center) }
+            }
+            .onChange(of: model.recenterTick) { _ in
+                // Panel reopened / jumped to today — recenter on today even if the
+                // selected date is unchanged.
+                withAnimation { proxy.scrollTo(dayID(Date()), anchor: .center) }
             }
         }
     }
