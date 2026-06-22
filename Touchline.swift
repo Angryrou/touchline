@@ -807,65 +807,128 @@ struct PanelView: View {
 
 // MARK: - Settings tab (Itsycal-style: a shortcut recorder + show/hide hint)
 
+/// Loads an image bundled in the app's Resources (used for the donation QR codes).
+private func bundledImage(_ name: String, _ ext: String) -> NSImage? {
+    guard let path = Bundle.main.path(forResource: name, ofType: ext) else { return nil }
+    return NSImage(contentsOfFile: path)
+}
+
 struct SettingsTab: View {
     @EnvironmentObject var hotKeys: HotKeyManager
     @StateObject private var login = LoginItem()
     @StateObject private var updates = UpdateChecker()
 
+    enum Section: String, CaseIterable { case settings = "Settings", about = "About" }
+    enum Pay: String, CaseIterable { case venmo = "Venmo", wechat = "WeChat" }
+
+    @State private var section: Section = .settings
+    @State private var pay: Pay = .venmo   // Venmo first, WeChat second
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            // Shortcut recorder
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Show / hide shortcut").font(.headline)
-                Text("Press this combo anywhere to toggle the panel.")
-                    .font(.caption).foregroundStyle(.secondary)
-                ShortcutRecorder()
-                    .environmentObject(hotKeys)
-                    .frame(height: 26)
+            // Sub-tabs to save vertical space.
+            Picker("", selection: $section) {
+                ForEach(Section.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            switch section {
+            case .settings: settingsSection
+            case .about:    aboutSection
             }
 
-            Divider()
-
-            // Launch at login
-            Toggle(isOn: Binding(get: { login.enabled }, set: { login.set($0) })) {
-                Text("Launch at login").font(.callout)
-            }
-            .toggleStyle(.switch)
-
-            Divider()
-
-            // Update check
-            HStack(spacing: 8) {
-                Button { updates.check() } label: { Text("Check for Updates") }
-                    .disabled(updates.state == .checking)
-                updateStatusView
-                Spacer()
-            }
-
-            // Links
-            HStack(spacing: 16) {
-                Link(destination: AppInfo.repoURL) {
-                    Label("Source Code", systemImage: "chevron.left.forwardslash.chevron.right")
-                }
-            }
-            .font(.callout)
-            .buttonStyle(.plain)
-
-            Spacer()
-
-            // Author / version footer
-            HStack {
-                Spacer()
-                Link("\(AppInfo.author)@", destination: AppInfo.repoURL)
-                    .foregroundStyle(.secondary)
-                Text("· v\(AppInfo.version)")
-                    .foregroundStyle(.tertiary)
-                Spacer()
-            }
-            .font(.caption)
+            Spacer(minLength: 0)
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    // MARK: Settings sub-tab
+
+    @ViewBuilder
+    private var settingsSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Show / hide shortcut").font(.headline)
+            Text("Press this combo anywhere to toggle the panel.")
+                .font(.caption).foregroundStyle(.secondary)
+            ShortcutRecorder()
+                .environmentObject(hotKeys)
+                .frame(height: 26)
+        }
+
+        Divider()
+
+        Toggle(isOn: Binding(get: { login.enabled }, set: { login.set($0) })) {
+            Text("Launch at login").font(.callout)
+        }
+        .toggleStyle(.switch)
+
+        Divider()
+
+        HStack(spacing: 8) {
+            Button { updates.check() } label: { Text("Check for Updates") }
+                .disabled(updates.state == .checking)
+            updateStatusView
+            Spacer()
+        }
+    }
+
+    // MARK: About sub-tab (source, support QR, version)
+
+    @ViewBuilder
+    private var aboutSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Enjoying Touchline?").font(.headline)
+            Text("If it helps you, buy me a Claude token 😂\n如果觉得好用，赏我几个 Claude token 呗 😂")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+
+        // QR switcher — one code at a time to save space.
+        Picker("", selection: $pay) {
+            ForEach(Pay.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+
+        HStack {
+            Spacer()
+            qrImage
+            Spacer()
+        }
+
+        Spacer(minLength: 0)
+
+        HStack {
+            Link(destination: AppInfo.repoURL) {
+                Label("Source", systemImage: "chevron.left.forwardslash.chevron.right")
+            }
+            .buttonStyle(.plain)
+            Spacer()
+            Text("\(AppInfo.author) · v\(AppInfo.version)").foregroundStyle(.tertiary)
+        }
+        .font(.caption)
+    }
+
+    @ViewBuilder
+    private var qrImage: some View {
+        let name = pay == .venmo ? "qr-code-vemon" : "qr-code-wechat"
+        if let img = bundledImage(name, "jpg") {
+            VStack(spacing: 4) {
+                Image(nsImage: img)
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 168, height: 168)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                Text("Scan with \(pay.rawValue) to tip")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+        } else {
+            Text("QR unavailable").font(.caption).foregroundStyle(.secondary).frame(height: 168)
+        }
     }
 
     @ViewBuilder

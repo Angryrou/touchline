@@ -26,6 +26,10 @@ if [ ! -f Touchline.icns ]; then
 fi
 cp Touchline.icns "$CONTENTS/Resources/Touchline.icns"
 
+# Donation QR codes (shown in Settings → About).
+cp assets/qr-code-vemon.jpg "$CONTENTS/Resources/qr-code-vemon.jpg"
+cp assets/qr-code-wechat.jpg "$CONTENTS/Resources/qr-code-wechat.jpg"
+
 cat > "$CONTENTS/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -35,7 +39,7 @@ cat > "$CONTENTS/Info.plist" <<'PLIST'
     <key>CFBundleDisplayName</key>     <string>Touchline</string>
     <key>CFBundleIdentifier</key>      <string>com.angryrou.touchline</string>
     <key>CFBundleVersion</key>         <string>1</string>
-    <key>CFBundleShortVersionString</key> <string>1.1.1</string>
+    <key>CFBundleShortVersionString</key> <string>1.1.2</string>
     <key>CFBundlePackageType</key>     <string>APPL</string>
     <key>CFBundleExecutable</key>      <string>Touchline</string>
     <key>CFBundleIconFile</key>        <string>Touchline</string>
