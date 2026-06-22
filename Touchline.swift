@@ -11,8 +11,6 @@ enum AppInfo {
     static let version = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "1.0.0"
     static let author = "Angryrou"
     static let repoURL = URL(string: "https://github.com/Angryrou/touchline")!
-    static let releasesURL = URL(string: "https://github.com/Angryrou/touchline/releases/latest")!
-    static let latestAPIURL = URL(string: "https://api.github.com/repos/Angryrou/touchline/releases/latest")!
 }
 
 // MARK: - Local timezone (auto-detected, never hardcoded)
@@ -250,54 +248,6 @@ final class LoginItem: ObservableObject {
             NSLog("LoginItem toggle failed: \(error)")
         }
         refresh()
-    }
-}
-
-// MARK: - Update checker (queries GitHub releases API)
-
-@MainActor
-final class UpdateChecker: ObservableObject {
-    enum State: Equatable {
-        case idle, checking, upToDate, available(String), failed(String)
-    }
-    @Published var state: State = .idle
-
-    func check() {
-        state = .checking
-        Task {
-            do {
-                var req = URLRequest(url: AppInfo.latestAPIURL)
-                req.timeoutInterval = 15
-                req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-                let (data, resp) = try await URLSession.shared.data(for: req)
-                if let http = resp as? HTTPURLResponse, http.statusCode == 404 {
-                    state = .upToDate   // no releases yet
-                    return
-                }
-                struct Release: Decodable { let tag_name: String }
-                let release = try JSONDecoder().decode(Release.self, from: data)
-                let latest = release.tag_name.trimmingCharacters(in: CharacterSet(charactersIn: "vV "))
-                if Self.isNewer(latest, than: AppInfo.version) {
-                    state = .available(latest)
-                } else {
-                    state = .upToDate
-                }
-            } catch {
-                state = .failed(error.localizedDescription)
-            }
-        }
-    }
-
-    // Numeric semver compare ("1.2.0" > "1.10.0" handled correctly).
-    static func isNewer(_ a: String, than b: String) -> Bool {
-        let pa = a.split(separator: ".").map { Int($0) ?? 0 }
-        let pb = b.split(separator: ".").map { Int($0) ?? 0 }
-        for i in 0..<max(pa.count, pb.count) {
-            let x = i < pa.count ? pa[i] : 0
-            let y = i < pb.count ? pb[i] : 0
-            if x != y { return x > y }
-        }
-        return false
     }
 }
 
