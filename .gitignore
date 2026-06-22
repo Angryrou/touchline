@@ -6,3 +6,6 @@ WC26.app/
 Touchline.iconset/
 make_icon
 icon_preview_*.png
+
+# Local-only promo notes (never commit)
+PROMO_NOTES.md
