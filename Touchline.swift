@@ -816,99 +816,66 @@ private func bundledImage(_ name: String, _ ext: String) -> NSImage? {
 struct SettingsTab: View {
     @EnvironmentObject var hotKeys: HotKeyManager
     @StateObject private var login = LoginItem()
-    @StateObject private var updates = UpdateChecker()
 
-    enum Section: String, CaseIterable { case settings = "Settings", about = "About" }
     enum Pay: String, CaseIterable { case venmo = "Venmo", wechat = "WeChat" }
-
-    @State private var section: Section = .settings
     @State private var pay: Pay = .venmo   // Venmo first, WeChat second
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            // Sub-tabs to save vertical space.
-            Picker("", selection: $section) {
-                ForEach(Section.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+        VStack(alignment: .leading, spacing: 12) {
+            // Show / hide shortcut
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Show / hide shortcut").font(.headline)
+                Text("Press this combo anywhere to toggle the panel.")
+                    .font(.caption).foregroundStyle(.secondary)
+                ShortcutRecorder()
+                    .environmentObject(hotKeys)
+                    .frame(height: 26)
+            }
+
+            Divider()
+
+            // Launch at login
+            Toggle(isOn: Binding(get: { login.enabled }, set: { login.set($0) })) {
+                Text("Launch at login").font(.callout)
+            }
+            .toggleStyle(.switch)
+
+            Divider()
+
+            // Support — share a tip QR
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Enjoying Touchline?").font(.headline)
+                Text("It runs on Claude tokens — buy me some? 😄")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Picker("", selection: $pay) {
+                ForEach(Pay.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
 
-            switch section {
-            case .settings: settingsSection
-            case .about:    aboutSection
+            HStack {
+                Spacer()
+                qrImage
+                Spacer()
             }
 
             Spacer(minLength: 0)
+
+            HStack {
+                Link(destination: AppInfo.repoURL) {
+                    Label("Source", systemImage: "chevron.left.forwardslash.chevron.right")
+                }
+                .buttonStyle(.plain)
+                Spacer()
+                Text("\(AppInfo.author) · v\(AppInfo.version)").foregroundStyle(.tertiary)
+            }
+            .font(.caption)
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-
-    // MARK: Settings sub-tab
-
-    @ViewBuilder
-    private var settingsSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Show / hide shortcut").font(.headline)
-            Text("Press this combo anywhere to toggle the panel.")
-                .font(.caption).foregroundStyle(.secondary)
-            ShortcutRecorder()
-                .environmentObject(hotKeys)
-                .frame(height: 26)
-        }
-
-        Divider()
-
-        Toggle(isOn: Binding(get: { login.enabled }, set: { login.set($0) })) {
-            Text("Launch at login").font(.callout)
-        }
-        .toggleStyle(.switch)
-
-        Divider()
-
-        HStack(spacing: 8) {
-            Button { updates.check() } label: { Text("Check for Updates") }
-                .disabled(updates.state == .checking)
-            updateStatusView
-            Spacer()
-        }
-    }
-
-    // MARK: About sub-tab (source, support QR, version)
-
-    @ViewBuilder
-    private var aboutSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Enjoying Touchline?").font(.headline)
-            Text("It runs on Claude tokens — buy me some? 😄  ·  赏我几个 Claude token 呗 😄")
-                .font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-
-        // QR switcher — one code at a time to save space.
-        Picker("", selection: $pay) {
-            ForEach(Pay.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-
-        HStack {
-            Spacer()
-            qrImage
-            Spacer()
-        }
-
-        Spacer(minLength: 0)
-
-        HStack {
-            Link(destination: AppInfo.repoURL) {
-                Label("Source", systemImage: "chevron.left.forwardslash.chevron.right")
-            }
-            .buttonStyle(.plain)
-            Spacer()
-            Text("\(AppInfo.author) · v\(AppInfo.version)").foregroundStyle(.tertiary)
-        }
-        .font(.caption)
     }
 
     @ViewBuilder
@@ -920,35 +887,14 @@ struct SettingsTab: View {
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 168, height: 168)
+                    .frame(width: 150, height: 150)
                     .background(Color.white)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 Text("Scan with \(pay.rawValue) to tip")
                     .font(.caption2).foregroundStyle(.secondary)
             }
         } else {
-            Text("QR unavailable").font(.caption).foregroundStyle(.secondary).frame(height: 168)
-        }
-    }
-
-    @ViewBuilder
-    private var updateStatusView: some View {
-        switch updates.state {
-        case .idle:
-            EmptyView()
-        case .checking:
-            ProgressView().controlSize(.small)
-        case .upToDate:
-            Label("Up to date", systemImage: "checkmark.circle.fill")
-                .font(.caption).foregroundStyle(.green)
-        case .available(let v):
-            Link(destination: AppInfo.releasesURL) {
-                Label("v\(v) available", systemImage: "arrow.down.circle.fill")
-                    .font(.caption).foregroundStyle(.blue)
-            }
-        case .failed:
-            Label("Check failed", systemImage: "exclamationmark.triangle.fill")
-                .font(.caption).foregroundStyle(.orange)
+            Text("QR unavailable").font(.caption).foregroundStyle(.secondary).frame(height: 150)
         }
     }
 }
